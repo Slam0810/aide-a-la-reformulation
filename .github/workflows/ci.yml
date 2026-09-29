@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Vérification des types et build
+        run: npm run build
+        env:
+          # Clé factice : suffisante pour que le build passe, aucun appel
+          # réseau n'est fait à la compilation.
+          ANTHROPIC_API_KEY: ci-build-placeholder
+
+      - name: Tests unitaires (Vitest)
+        run: npm test
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: build-and-unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Installer les navigateurs Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Tests end-to-end (Playwright)
+        run: npm run test:e2e
+        env:
+          ANTHROPIC_API_KEY: e2e-test-placeholder-not-used
+
+      - name: Publier le rapport Playwright en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
